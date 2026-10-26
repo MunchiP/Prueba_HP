@@ -1,68 +1,108 @@
-import { test, expect } from "@playwright/test";
 
+import { test, expect } from "@playwright/test";
 import LoginPage from "../pages/LoginPage.js";
 import InventoryPage from "../pages/InventoryPage.js";
 import CartPage from "../pages/CarPage.js";
+import { readFile, mkdir } from "node:fs/promises";
+import { PDFDocument } from "pdf-lib";
 
-test("Verificar que los productos seleccionados estén en el carrito", async ({
-  page,
-}) => {
-  // Creamos los objetos que necesitamos para la prueba.
-  const loginPage = new LoginPage(page);
-  const inventoryPage = new InventoryPage(page);
-  const cartPage = new CartPage(page);
+test("Completar compra y validar PDF descargado", async ({ page }, testInfo) => {
+    const loginPage = new LoginPage(page);
+    const inventoryPage = new InventoryPage(page);
+    const cartPage = new CartPage(page);
 
-  await loginPage.navigate();
-  await loginPage.login("standard_user", "secret_sauce");
+    await loginPage.navigate();
+    await loginPage.login("standard_user", "secret_sauce");
 
-  // Definimos los productos que queremos seleccionar.
-  const products = ["Sauce Labs Backpack", "Sauce Labs Bike Light"];
+    const products = [
+        "Sauce Labs Backpack",
+        "Sauce Labs Bike Light"
+    ];
 
-  // Agregamos los productos al carrito.
-  await inventoryPage.addMultipleProductsToCart(products);
+    await inventoryPage.addMultipleProductsToCart(products);
+    await inventoryPage.openCart();
 
-  // Abrimos la página del carrito.
-  await inventoryPage.openCart();
+    await expect(page).toHaveURL(
+        "https://www.saucedemo.com/cart.html"
+    );
 
-  // Verificamos que estamos en la URL correcta.
-  await expect(page).toHaveURL("https://www.saucedemo.com/cart.html");
+    await page.locator("#checkout").click();
 
-  await page.locator("#checkout").click();
+    await expect(page).toHaveURL(
+        "https://www.saucedemo.com/checkout-step-one.html"
+    );
 
-  await expect(page).toHaveURL(
-    "https://www.saucedemo.com/checkout-step-one.html",
-  );
+    await page.locator("#first-name").fill("Paula");
+    await page.locator("#last-name").fill("Amaya");
+    await page.locator("#postal-code").fill("11111");
 
-  // Proceso para terminar la compra - datos de compra
-  await page.locator("#first-name").fill("Paula");
-  await page.locator("#last-name").fill("Amaya");
-  await page.locator("#postal-code").fill("11111");
+    await page.locator("#continue").click();
 
-  // Valido la confirmación
+    await expect(page).toHaveURL(
+        "https://www.saucedemo.com/checkout-step-two.html"
+    );
 
-  await page.locator("#continue").click();
+    await page.locator("#finish").click();
 
-  await expect(page).toHaveURL(
-    "https://www.saucedemo.com/checkout-step-two.html",
-  );
+    await expect(page).toHaveURL(
+        "https://www.saucedemo.com/checkout-complete.html"
+    );
 
-  await page.locator("#finish").click();
+    await expect(
+        page.getByText(/thank you for your order/i)
+    ).toBeVisible();
 
-  await expect(page).toHaveURL(
-    "https://www.saucedemo.com/checkout-complete.html",
-  );
+    // 1. Preparar la espera ANTES del clic
+    const downloadPromise = page.waitForEvent("download");
 
-  // await expect( page.pageByText('Tank you for you order!')).toBiVisible();
+    // 2. Generar y descargar el PDF desde la aplicación
+    await page.locator("#generate-pdf-order").click();
 
-  // Paso de descarga en el botón
+    const download = await downloadPromise;
 
-  await page.locator("#generate-pdf-order").click();
+    console.log("Nombre del archivo:", download.suggestedFilename());
 
-  // Varificación de que es PDF
-  const downloadPromise = page.waitForEvent("download");
-  const download = await downloadPromise;
+    // 3. Comprobar que la descarga no falló
+    expect(await download.failure()).toBeNull();
 
-  expect(download.suggestedFilename()).toMatch(/\.pdf$/); // valido la extensión del archivo
+    // 4. Guardar el archivo descargado
+    const outputDirectory = testInfo.outputPath("pdf");
+    await mkdir(outputDirectory, { recursive: true });
 
-  expect(await download.failure()).toBeNull(); // y valido que la descarga no haya fallado
+    const filePath = testInfo.outputPath(
+        "pdf",
+        download.suggestedFilename()
+    );
+
+    await download.saveAs(filePath);
+
+    console.log("Archivo guardado en:", filePath);
+
+    // 5. Leer el archivo descargado, no uno anterior
+    const contenido = await readFile(filePath);
+
+    expect(contenido.length).toBeGreaterThan(0);
+
+    // 6. Comprobar la firma interna del PDF
+    const firma = contenido.subarray(0, 5).toString("ascii");
+
+    console.log("Firma detectada:", firma);
+
+    expect(firma).toBe("%PDF-");
+
+    // 7. Intentar analizar la estructura del documento
+    const documentoPDF = await PDFDocument.load(contenido);
+
+    const numeroPaginas = documentoPDF.getPageCount();
+
+    console.log("PDF válido: el documento se pudo analizar.");
+    console.log("Número de páginas:", numeroPaginas);
+
+    expect(numeroPaginas).toBeGreaterThan(0);
+
+    // 8. Adjuntar el PDF al reporte de Playwright
+    await testInfo.attach("order.pdf", {
+        path: filePath,
+        contentType: "application/pdf"
+    });
 });

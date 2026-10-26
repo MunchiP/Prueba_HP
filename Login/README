@@ -27,6 +27,7 @@ El proyecto consiste en Arma un mini framework de pruebas sobre una app pública
  Playwright versión: 1.64
  Node versión: 24.22
  Npm versión: 11.19
+ pdf-lib: análisis y validación estructural de documentos PDF.
 
 ## 4. Architectura and Design Decisions
 
