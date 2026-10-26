@@ -1,0 +1,41 @@
+# QA Automation Framework
+
+## 1. Overview
+
+El proyecto consiste en Arma un mini framework de pruebas sobre una app pública (SauceDemo para UI y Restful-Booker para API) y entrega el repositorio.
+ 
+ SauceDemo: https://www.saucedemo.com/
+ Resful-Booker: https://restful-booker.herokuapp.com
+
+ ## 2. Scope and Test Coverage
+
+ ### UI Testing - SauceDemo
+
+ UI-001 | Login exitoso | Login fallido
+ UI-002 | Carga página de inventario | Selecciona productos del inventario
+ UI-003 | Verificación contador del inventario | Pantalla del carrito con productos
+
+ ### API Testing - Restful-Booker
+
+ API-001 | Persistencia de una reserva
+ API-002 | Consistencia tra actualizar una reserva
+ API-003 | Rechazo de datos de entrada inválidos
+
+ ## 3. Technology Stack and Prerequisites - setup
+
+ Javascript
+ Playwright versión: 1.64
+ Node versión: 24.22
+ Npm versión: 11.19
+
+## 4. Architectura and Design Decisions
+
+Proyecto separa la lógica en carpetas generales: 
+UI_TEST para las pruebas de SauceDemo
+API_TEST para las pruebas de Resful-Booker
+
+también utiliza POM y APIClient para separación de la lógica y escalabilidad de la herramienta. 
+
+## 5. Continuos  Integration
+
+GitHub Actions workflow
